@@ -1,0 +1,14 @@
+{
+  "model": "cartvista-churn",
+  "alias": "champion",
+  "version": 3,
+  "run_id": "9d56073a3f454c8aba3d10fe61d999b1",
+  "features": [
+    "tenure_months",
+    "monthly_spend",
+    "orders_per_month",
+    "support_tickets",
+    "uses_discounts",
+    "app_sessions"
+  ]
+}
