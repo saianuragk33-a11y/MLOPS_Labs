@@ -1,0 +1,37 @@
+name: cartvista-lab1
+services:
+  tools:
+    image: cartvista-dev:lab
+    build: &id001
+      context: .
+      dockerfile: Dockerfile.dev
+    user: '50000:0'
+    working_dir: /workspace
+    volumes: &id002
+    - project:/workspace
+    environment: &id003
+      LAB_AUTHOR: ${LAB_AUTHOR:-Sai}
+      MLFLOW_TRACKING_URI: sqlite:////workspace/mlflow.db
+    profiles:
+    - tools
+  mlflow:
+    image: cartvista-dev:lab
+    build: *id001
+    user: '50000:0'
+    working_dir: /workspace
+    volumes: *id002
+    environment: *id003
+    command:
+    - mlflow
+    - ui
+    - --backend-store-uri
+    - sqlite:////workspace/mlflow.db
+    - --host
+    - 0.0.0.0
+    - --port
+    - '5000'
+    ports:
+    - 127.0.0.1:5000:5000
+volumes:
+  project:
+    name: cartvista_lab1_project
