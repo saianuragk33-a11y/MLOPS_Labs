@@ -1,0 +1,14 @@
+{
+  "run_id": "9d56073a3f454c8aba3d10fe61d999b1",
+  "test_auc": 0.7495794388998274,
+  "test_accuracy": 0.908,
+  "test_f1": 0.049586776859504134,
+  "test_precision": 0.75,
+  "test_recall": 0.02564102564102564,
+  "training_seconds": 0.40918696299922885,
+  "params": {
+    "C": 1.0,
+    "model_kind": "logreg"
+  },
+  "fingerprint": "e37ce0cb99"
+}

@@ -1,0 +1,15 @@
+{
+  "run_id": "68c04aca9292491f8715bf10c3970e33",
+  "test_auc": 0.6812033705237589,
+  "test_accuracy": 0.9064,
+  "test_f1": 0.03305785123966942,
+  "test_precision": 0.5,
+  "test_recall": 0.017094017094017096,
+  "training_seconds": 0.989911253000173,
+  "params": {
+    "n_estimators": 200,
+    "max_depth": 8,
+    "model_kind": "rf"
+  },
+  "fingerprint": "e37ce0cb99"
+}
