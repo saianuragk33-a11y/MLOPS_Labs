@@ -1,0 +1,32 @@
+artifact_path: model
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.11.16
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.5.0
+mlflow_version: 2.14.1
+model_size_bytes: 1166
+model_uuid: af5931df89ce4b5f8757d468b59c3833
+run_id: f0dc4382ba9840789fd4d27177ad45a5
+saved_input_example_info:
+  artifact_path: input_example.json
+  pandas_orient: split
+  type: dataframe
+signature:
+  inputs: '[{"type": "long", "name": "tenure_months", "required": true}, {"type":
+    "double", "name": "monthly_spend", "required": true}, {"type": "long", "name":
+    "orders_per_month", "required": true}, {"type": "long", "name": "support_tickets",
+    "required": true}, {"type": "long", "name": "uses_discounts", "required": true},
+    {"type": "long", "name": "app_sessions", "required": true}]'
+  outputs: '[{"type": "tensor", "tensor-spec": {"dtype": "int64", "shape": [-1]}}]'
+  params: null
+utc_time_created: '2026-09-28 07:49:20.206351'

@@ -1,0 +1,76 @@
+name: cartvista-lab2
+services:
+  tools:
+    image: cartvista-dev:lab
+    build: &id001
+      context: .
+      dockerfile: Dockerfile.dev
+    user: '50000:0'
+    working_dir: /workspace
+    volumes: &id002
+    - project:/workspace
+    environment: &id003
+      LAB_AUTHOR: ${LAB_AUTHOR:-Sai}
+      MLFLOW_TRACKING_URI: sqlite:////workspace/mlflow.db
+    profiles:
+    - tools
+  mlflow:
+    image: cartvista-dev:lab
+    build: *id001
+    user: '50000:0'
+    working_dir: /workspace
+    volumes: *id002
+    environment: *id003
+    command:
+    - mlflow
+    - ui
+    - --backend-store-uri
+    - sqlite:////workspace/mlflow.db
+    - --host
+    - 0.0.0.0
+    - --port
+    - '5000'
+    ports:
+    - 127.0.0.1:5000:5000
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+    - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U airflow
+      interval: 5s
+      retries: 20
+  airflow:
+    image: cartvista-airflow:lab
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    user: '50000:0'
+    command: standalone
+    ports:
+    - 127.0.0.1:8080:8080
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__DAGS_FOLDER: /workspace/airflow_home/dags
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE: Asia/Kolkata
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      LAB_AUTHOR: ${LAB_AUTHOR:-Sai}
+    volumes:
+    - project:/workspace
+    - airflow:/opt/airflow
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  project:
+    name: cartvista_lab2_project
+  postgres: null
+  airflow: null

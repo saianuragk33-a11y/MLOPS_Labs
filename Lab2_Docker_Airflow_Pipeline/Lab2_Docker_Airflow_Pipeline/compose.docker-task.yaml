@@ -1,0 +1,5 @@
+# Optional E4: the Docker socket grants control of the local Docker daemon.
+services:
+  airflow:
+    group_add: ["${DOCKER_GID:-0}"]
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock"]

@@ -1,0 +1,159 @@
+<!doctype html><meta charset="utf-8"><title>Lab 2 guide</title><style>body{max-width:1000px;margin:35px auto;font:16px/1.6 Arial;padding:20px}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style><h1>Lab 2 execution guide</h1><pre># Lab 2 — Docker Airflow Pipeline
+
+This is a separate runnable package and report for Lab 2. Open only this lab&#x27;s folder and notebook. Do not submit the combined four-lab archive. The package includes prerequisite dataset/model creation; you do not have to copy a SQLite registry from another lab. No measured result or screenshot is prefilled.
+
+## Start here: Windows / Docker route
+
+1. Extract `Lab2_Docker_Airflow_Pipeline.zip` into its own folder.
+2. Open the extracted `Lab2_Docker_Airflow_Pipeline` folder. Type `powershell` into File Explorer&#x27;s address bar and press Enter.
+3. Start Docker Desktop and wait for its engine. If it remains stuck on Starting, resolve the WSL startup issue first. Check these commands:
+
+```text
+python --version
+docker info
+docker compose version
+```
+
+4. Set your name:
+
+```powershell
+$env:LAB_AUTHOR=&quot;Sai YourFullName&quot;
+```
+
+5. Initialize this lab once, then create its prerequisite dataset and registered champion:
+
+```text
+python labctl.py init
+python labctl.py prepare
+```
+
+The prepare action runs the included training/registry scripts as setup. Their Lab 1 evidence is prerequisite material; it is not a second lab submission.
+
+This lab uses Docker project `cartvista-lab2` and volume `cartvista_lab2_project`. Other labs use different volumes. Run one lab stack at a time because browser ports are shared. Run `python labctl.py stop` in the previous lab folder before starting another. Stopping preserves results. Do not add `-v` to Compose down unless you intend to delete data.
+
+The detailed exercise commands follow. They run from this same folder.
+
+## 4 Lab 2 Docker and Airflow
+
+### 4.1 Export and package the champion
+
+```text
+python labctl.py scorer
+```
+
+This resolves the champion to an immutable version, exports its MLflow artifacts, copies the export to your host, builds the full and lean scorer images, runs both against the shared CSV, and checks that their predictions match. It prints both image sizes. The scored files remain in the shared project volume.
+
+Capture the terminal and also run:
+
+```text
+docker images cartvista-scorer
+docker image inspect cartvista-scorer:v1 --format &quot;{{.Size}}&quot;
+docker image inspect cartvista-scorer:lean --format &quot;{{.Size}}&quot;
+```
+
+The `.Size` values are bytes. Divide by 1,000,000 for decimal MB. The lean image removes MLflow, its tracking/UI dependencies, pandas and extra model formats; it reads CSV using the standard library and loads the trusted exported sklearn object using joblib. It validates the trained feature-name order before constructing its NumPy input. Preserve the same sklearn/numpy/scipy versions. Measure the actual result: a sub-450 MB image is a target, not a claim about an image that has not been built. If your platform exceeds it, inspect `docker history cartvista-scorer:lean`; do not report a fabricated size. The minimal scorer is in score_batch_lean.py; the supplied equality check compares its output against the full MLflow scorer.
+
+### 4.2 Start Airflow
+
+```text
+docker compose up -d postgres airflow
+docker compose logs airflow
+```
+
+Wait until the logs say Airflow is ready. Get the generated admin password:
+
+```text
+docker compose exec airflow cat /opt/airflow/standalone_admin_password.txt
+```
+
+Open **http://localhost:8080**, username `admin`, password from the command. The lab uses a pinned Airflow 2 environment with its own dependencies; the ML code runs in `/opt/mlvenv` to avoid Airflow/MLflow package conflicts.
+
+Find `cartvista_weekly_retrain`, switch it **on/unpaused**, open Graph and trigger a run. If missing, check:
+
+```text
+docker compose exec airflow airflow dags list-import-errors
+```
+
+The graph contains `refresh_data`, parallel `train_logreg` and `train_rf`, `validate_best`, `promote` and `score_weekly`. The last task prints that the optional container exercise is disabled in a normal run. The training tasks each retry twice after 30 seconds. The gate receives exactly the two current-run IDs through XCom and passes the validated winner directly to promotion. A prior high-AUC historical run cannot bypass this gate.
+
+**Important evidence:** screenshot one all-green Grid run and the Graph. Open `validate_best` logs and record the current-cycle AUC and threshold. Check that MLflow shows the promoted version.
+
+### 4.3 Prove the failing gate
+
+In the Airflow UI choose Trigger DAG with configuration (or use the terminal form below). Enter:
+
+```json
+{&quot;auc_gate&quot;: 0.95}
+```
+
+PowerShell/Linux terminal alternative; if shell quoting causes trouble, use the UI JSON box:
+
+```text
+docker compose exec airflow airflow dags trigger cartvista_weekly_retrain --conf &#x27;{&quot;auc_gate&quot;:0.95}&#x27;
+```
+
+Wait for completion. `validate_best` must fail, and `promote` and `score_weekly` must become `upstream_failed`. Screenshot the failed run. Compare the champion before and after: it must stay unchanged. The callback writes the timestamp and failing AUC exception to `evidence/gate_failures.log`.
+
+The high threshold applies only to this manually configured run; the normal threshold remains 0.72. The synthetic data may yield an AUC below 0.72 for both current candidates. If that happens, the gate is correctly failing: inspect the results and report it, rather than bypassing the failure. A threshold adjustment must be explicitly explained in your report.
+
+### 4.4 Monday schedule and idempotency exercise
+
+The DAG uses `0 2 * * 1`, starts in the `Asia/Kolkata` timezone, and disables catchup. This means Monday 02:00 India time. Set the Airflow UI timezone to Asia/Kolkata when comparing displayed dates. Run:
+
+```text
+docker compose exec airflow airflow dags next-execution cartvista_weekly_retrain --num-executions 3
+```
+
+Record those three schedule dates and screenshot the UI&#x27;s next-run/timetable details. Airflow&#x27;s logical date denotes the beginning of the data interval; the actual scheduled run is created after that interval ends. For a current time of 27 September 2026, the next wall-clock Mondays are 28 September, 5 October and 12 October at 02:00 IST; your actual run date may differ. The CLI can report logical dates; label them accurately.
+
+Retraining is repeatable but not strictly side-effect-free: retries may log duplicate experiment runs. Only the successful attempt&#x27;s returned run ID flows to the gate. Pipeline promotion reuses an existing version for the same run ID to reduce duplicate registry writes on retries. This is a local teaching design, not a distributed exactly-once guarantee.
+
+### 4.5 Optional E4 actual container task
+
+`score_weekly` implements the required re-export → build → docker run sequence. To enable it, the Airflow container needs your local Docker daemon. Use this optional override only for this trusted local lab; mounting the Docker socket grants daemon-level control.
+
+On Linux determine the socket group:
+
+```bash
+export DOCKER_GID=$(stat -c &#x27;%g&#x27; /var/run/docker.sock)
+docker compose -f compose.yaml -f compose.docker-task.yaml up -d airflow
+```
+
+On Docker Desktop the default group 0 generally applies:
+
+```text
+docker compose -f compose.yaml -f compose.docker-task.yaml up -d airflow
+```
+
+Trigger with:
+
+```json
+{&quot;auc_gate&quot;:0.72,&quot;score_container&quot;:true}
+```
+
+Now the last task exports the freshly promoted model, builds a uniquely tagged lean image, and writes `/workspace/scored_weekly.csv` through the same named volume. The volume name is resolved by the host Docker daemon, avoiding the common container-in-container bind-path error. Verify logs and the file; capture the final green run. If socket permission is denied, check the actual group on the host and set `DOCKER_GID` before recreating Airflow.
+
+
+## Complete this lab&#x27;s separate submission
+
+1. Run `python labctl.py collect` to copy generated evidence into `my_results`.
+2. Open this folder&#x27;s `SUBMISSION_TEMPLATE.html`. It contains ONLY Lab 2 sections. Fill your name, ID and actual observations; add your screenshots using the image controls.
+3. Read `WRITTEN_ANSWERS.md` for this lab&#x27;s explanations. Adapt them to your measured outputs; do not invent values or successful UI runs.
+4. Print the completed template to PDF as `Lab2_YourStudentID_Report.pdf` before closing the browser. Browser edits are not automatically saved to the HTML file.
+5. Submit that PDF and the requested code/evidence for Lab 2 in its own portal entry. The starter ZIP is source material, not an executed submission. The course portal&#x27;s required format takes precedence.
+6. Use `python labctl.py stop` before starting another lab. Keep `my_results` and your PDF.
+
+## Colab route for this lab
+
+Upload `Lab2_Colab.ipynb` to Google Colab. In its first upload cell choose this lab&#x27;s ZIP. Set your name, then run cells in order on a CPU runtime. Each notebook performs its own prerequisite training. Save the executed notebook and download its evidence ZIP before disconnecting.
+
+Colab runs export, batch scoring and gate logic. Actual Docker images, image sizes, Airflow Grid/Graph and scheduled DAG evidence still require the Docker route above.
+
+## What is included
+
+- This lab&#x27;s instructions, written answers, notebook and editable report template.
+- The required source scripts and infrastructure configuration.
+- Shared model-generation scripts copied into this package so it can run independently.
+- `VALIDATION.md`: checks performed and remaining execution requirements.
+
+</pre>
